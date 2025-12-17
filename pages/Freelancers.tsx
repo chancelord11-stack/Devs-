@@ -1,0 +1,89 @@
+import React, { useState } from 'react';
+import { FREELANCERS } from '../constants';
+import FreelancerCard from '../components/FreelancerCard';
+import Sidebar from '../components/Sidebar';
+import { Filter, Search } from 'lucide-react';
+
+const Freelancers: React.FC = () => {
+  const [filters, setFilters] = useState({
+    category: '',
+    minBudget: 0,
+    maxBudget: 10000
+  });
+
+  return (
+    <div className="min-h-screen pt-20 pb-12 animate-fade-in">
+        <div className="container mx-auto px-6">
+            <h1 className="text-3xl font-display font-bold text-white mb-8">Base de Talents</h1>
+
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            <div className="lg:col-span-1 space-y-6">
+                <div className="bg-nexus-surface border border-white/10 p-5 rounded-2xl">
+                     <div className="flex items-center gap-2 mb-4 text-nexus-primary font-bold uppercase text-xs tracking-wider">
+                         <Filter size={14} /> Filtres
+                     </div>
+                     <Sidebar filters={filters} setFilters={setFilters} showBudget={false} />
+                </div>
+                
+                <div className="bg-nexus-surface border border-nexus-success/20 p-6 rounded-2xl relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-nexus-success/5 group-hover:bg-nexus-success/10 transition-colors"></div>
+                    <div className="relative z-10">
+                        <h4 className="font-bold text-white mb-2">Vous êtes prestataire ?</h4>
+                        <p className="text-sm text-gray-400 mb-4">Rejoignez l'élite technologique africaine et accédez aux meilleures missions.</p>
+                        <button className="w-full bg-nexus-success hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-emerald-900/20">
+                            Créer mon profil
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div className="lg:col-span-3">
+                <div className="bg-nexus-surface p-4 border border-white/10 rounded-xl mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div className="text-gray-400 text-sm">
+                        <span className="font-bold text-white">{FREELANCERS.length * 154}</span> experts disponibles
+                    </div>
+                    
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <div className="relative flex-1 sm:w-64">
+                            <input 
+                                type="text" 
+                                placeholder="Rechercher par compétence..." 
+                                className="w-full bg-black/20 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm text-white focus:outline-none focus:border-nexus-primary"
+                            />
+                            <Search className="absolute left-3 top-2.5 text-gray-500" size={14} />
+                        </div>
+                        <select className="bg-black/20 border border-white/10 text-gray-300 text-sm rounded-lg p-2 outline-none focus:border-nexus-primary cursor-pointer">
+                            <option>Pertinence</option>
+                            <option>Note: décroissant</option>
+                            <option>TJM: croissant</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    {FREELANCERS.map(freelancer => (
+                        <div key={freelancer.id} className="animate-fade-in">
+                            <FreelancerCard freelancer={freelancer} />
+                        </div>
+                    ))}
+                    {/* Fake pagination data */}
+                    {FREELANCERS.map(freelancer => (
+                        <div key={freelancer.id + '_dup1'} className="animate-fade-in">
+                            <FreelancerCard freelancer={{...freelancer, id: freelancer.id + '_dup1'}} />
+                        </div>
+                    ))}
+                </div>
+                
+                <div className="mt-8 flex justify-center">
+                    <button className="px-6 py-2 border border-white/10 rounded-lg text-sm text-gray-400 hover:text-white hover:border-nexus-primary hover:bg-nexus-primary/10 transition-all">
+                        Charger plus de profils
+                    </button>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+  );
+};
+
+export default Freelancers;
