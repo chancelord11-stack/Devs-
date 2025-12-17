@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { User, Project, Freelancer, MessageThread, Notification } from '../types';
-import { FREELANCERS, MESSAGES as INITIAL_MESSAGES, PROJECTS as DEMO_PROJECTS } from '../constants';
+import { MESSAGES as INITIAL_MESSAGES } from '../constants';
 import { useAuth } from './AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -12,9 +12,11 @@ interface DataContextType {
   notifications: Notification[];
   addProject: (project: Omit<Project, 'id' | 'offers' | 'views' | 'interactions' | 'date'>) => Promise<void>;
   sendMessage: (threadId: string, text: string) => void;
+  applyToProject: (project: Project, proposal: string) => void;
   markNotificationRead: (id: string) => void;
   toggleFollowProject: (id: string) => void;
   updateUserProfile: (updates: Partial<User>) => void;
+  formatMoney: (amount: number) => string;
   loadingData: boolean;
 }
 
@@ -23,104 +25,132 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user: authUser } = useAuth();
   
-  // We maintain a local user state that can be updated, initialized from AuthContext
   const [localUser, setLocalUser] = useState<User | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [freelancers, setFreelancers] = useState<Freelancer[]>([]);
   const [messages, setMessages] = useState<MessageThread[]>(INITIAL_MESSAGES);
-  const [notifications, setNotifications] = useState<Notification[]>([
-    { id: 'n1', type: 'info', message: 'Bienvenue sur Nexus AfriTech ! Complétez votre profil.', date: 'Il y a 1h', read: false },
-  ]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
-  // Sync with Auth User initially and on change
+  // Sync with Auth User
   useEffect(() => {
-    setLocalUser(authUser);
+    if (authUser) {
+        setLocalUser(authUser);
+        if (notifications.length === 0) {
+            setNotifications([{
+                id: 'n_init',
+                type: 'info',
+                message: 'Bienvenue sur Nexus AfriTech ! Complétez votre profil.',
+                date: "À l'instant",
+                read: false
+            }]);
+        }
+    }
   }, [authUser]);
 
-  // Fetch Projects from Real Supabase DB
+  // Fetch Data (Projects & Freelancers)
   useEffect(() => {
-    const fetchProjects = async () => {
+    const fetchData = async () => {
+      setLoadingData(true);
+      
+      // 1. Fetch Freelancers from Supabase
       try {
-        const { data, error } = await supabase
-          .from('projects')
-          .select('*')
-          .order('created_at', { ascending: false });
+          const { data: profiles, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('type', 'freelance')
+            .order('updated_at', { ascending: false });
 
-        if (error) {
-          console.warn('Supabase fetch error (using demo data):', error.message || error);
-          setProjects(DEMO_PROJECTS);
-          setLoadingData(false);
-          return;
-        }
-
-        if (data && data.length > 0) {
-          const mappedProjects: Project[] = data.map((p: any) => ({
-            id: p.id,
-            title: p.title,
-            description: p.description,
-            status: p.status || 'Ouvert',
-            budget: { min: p.budget_min || 0, max: p.budget_max || 0 },
-            date: new Date(p.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
-            created_at: p.created_at,
-            offers: p.offers_count || 0,
-            views: p.views_count || 0,
-            interactions: 0,
-            skills: p.skills || [],
-            clientId: p.client_id ? 'Client Vérifié' : '#Anonyme',
-            isFollowed: false
-          }));
-          setProjects(mappedProjects);
-        } else {
-           setProjects(DEMO_PROJECTS);
-        }
+          if (profiles) {
+              const mappedFreelancers: Freelancer[] = profiles.map((p: any) => ({
+                  id: p.id,
+                  name: p.name || 'Utilisateur',
+                  isAvailable: true,
+                  rating: 5.0, // Valeur par défaut pour les nouveaux
+                  reviewCount: 0,
+                  avatar: p.avatar_url || `https://ui-avatars.com/api/?name=${p.name || 'User'}&background=random`,
+                  tagline: p.tagline || 'Nouveau talent',
+                  skills: p.skills || [],
+                  hourlyRate: p.hourly_rate || 0,
+                  projectsRealized: 0,
+                  location: p.location || 'Non renseigné',
+                  memberSince: new Date(p.updated_at || Date.now()).toLocaleDateString(),
+                  responseTime: '24h',
+                  verifications: ['email'],
+                  bio: p.bio
+              }));
+              setFreelancers(mappedFreelancers);
+          }
       } catch (err) {
-        console.error("Unexpected error fetching projects, using demo data", err);
-        setProjects(DEMO_PROJECTS);
-      } finally {
-        setLoadingData(false);
+          console.error("Error fetching freelancers:", err);
       }
+
+      setLoadingData(false);
     };
 
-    fetchProjects();
+    fetchData();
   }, []);
 
+  // Détection de la monnaie
+  const formatMoney = (amount: number) => {
+    if (!localUser?.location) return `${amount} €`;
+    
+    const cfaCountries = ['Benin', 'Bénin', 'Togo', 'Cote d\'Ivoire', 'Côte d\'Ivoire', 'Senegal', 'Sénégal', 'Mali', 'Burkina', 'Niger'];
+    const userCountry = localUser.location;
+    
+    const isCFA = cfaCountries.some(c => userCountry.toLowerCase().includes(c.toLowerCase()));
+    
+    if (isCFA) {
+        // Taux fixe approximatif 1€ = 655 FCFA
+        const cfaAmount = (amount * 655).toLocaleString('fr-FR');
+        return `${cfaAmount} CFA`;
+    }
+    
+    return `${amount} €`;
+  };
+
   const addProject = async (newProjectData: Omit<Project, 'id' | 'offers' | 'views' | 'interactions' | 'date'>) => {
-    const tempId = `temp-${Date.now()}`;
+    const tempId = `p-${Date.now()}`;
     const optimisticProject: Project = {
       ...newProjectData,
       id: tempId,
       offers: 0,
       views: 0,
       interactions: 0,
-      date: 'À l\'instant'
+      date: 'À l\'instant',
+      clientId: localUser?.name || 'Moi'
     };
     setProjects([optimisticProject, ...projects]);
 
-    const isDemo = localStorage.getItem('lanceo_demo_session') === 'active';
-
-    if (!isDemo) {
-        const { error } = await supabase.from('projects').insert({
-          title: newProjectData.title,
-          description: newProjectData.description,
-          budget_min: newProjectData.budget.min,
-          budget_max: newProjectData.budget.max,
-          skills: newProjectData.skills,
-          status: 'Ouvert'
-        });
-        
-        if (error) {
-            console.error("Error inserting project:", error.message || error);
-        }
-    }
-    
     const notif: Notification = {
       id: `n${Date.now()}`,
       type: 'success',
-      message: `Votre projet "${newProjectData.title}" a été publié avec succès.`,
+      message: `Votre projet "${newProjectData.title}" est en ligne.`,
       date: 'À l\'instant',
       read: false
     };
     setNotifications([notif, ...notifications]);
+  };
+
+  const applyToProject = (project: Project, proposal: string) => {
+      const newThreadId = `t_${Date.now()}`;
+      const newMessageThread: MessageThread = {
+          id: newThreadId,
+          correspondent: project.clientId,
+          messages: [
+              {
+                  id: `m_${Date.now()}`,
+                  text: `Nouvelle candidature pour : ${project.title}. \n\nMessage: ${proposal}`,
+                  sender: 'me',
+                  timestamp: "À l'instant"
+              }
+          ],
+          unread: false,
+          avatar: `https://ui-avatars.com/api/?name=${project.clientId}&background=random`,
+          lastMessageDate: "À l'instant"
+      };
+
+      setMessages([newMessageThread, ...messages]);
   };
 
   const sendMessage = (threadId: string, text: string) => {
@@ -147,7 +177,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateUserProfile = (updates: Partial<User>) => {
     if (localUser) {
         setLocalUser({ ...localUser, ...updates });
-        // In a real app, you would send a PATCH request to Supabase here
+        // Update freelancers list if current user is a freelancer
+        if (localUser.type === 'freelance') {
+             setFreelancers(prev => prev.map(f => f.id === localUser.id ? { ...f, ...updates } as Freelancer : f));
+        }
     }
   };
 
@@ -155,14 +188,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     <DataContext.Provider value={{ 
       user: localUser, 
       projects, 
-      freelancers: FREELANCERS, 
+      freelancers, 
       messages, 
       notifications,
       addProject,
       sendMessage,
+      applyToProject,
       markNotificationRead,
       toggleFollowProject,
       updateUserProfile,
+      formatMoney,
       loadingData
     }}>
       {children}
