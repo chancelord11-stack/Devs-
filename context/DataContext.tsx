@@ -48,14 +48,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [authUser]);
 
-  // Fetch Data (Projects & Freelancers)
+  // Chargement initial des données + Realtime Subscription
   useEffect(() => {
     const fetchData = async () => {
       setLoadingData(true);
-      
       try {
-          // Fetch Freelancers from Supabase
-          const { data: profiles, error } = await supabase
+          // 1. Fetch Freelancers (Profiles)
+          const { data: profiles } = await supabase
             .from('profiles')
             .select('*')
             .eq('type', 'freelance')
@@ -65,159 +64,187 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               const mappedFreelancers: Freelancer[] = profiles.map((p: any) => ({
                   id: p.id,
                   name: p.name || 'Utilisateur',
-                  isAvailable: true,
-                  rating: 5.0, 
-                  reviewCount: 0,
+                  isAvailable: true, // Pourrait être une colonne en DB
+                  rating: Number(p.rating) || 5.0, 
+                  reviewCount: p.reviews_count || 0,
                   avatar: p.avatar_url || `https://ui-avatars.com/api/?name=${p.name || 'User'}&background=random`,
                   tagline: p.tagline || 'Nouveau talent',
                   skills: p.skills || [],
                   hourlyRate: p.hourly_rate || 0,
-                  projectsRealized: 0,
+                  projectsRealized: p.projects_count || 0,
                   location: p.location || 'Non renseigné',
-                  memberSince: new Date(p.updated_at || Date.now()).toLocaleDateString(),
-                  responseTime: '24h',
-                  verifications: ['email'],
+                  memberSince: new Date(p.created_at).getFullYear().toString(),
+                  responseTime: '4h',
+                  verifications: ['email', p.verified ? 'identity' : null].filter(Boolean) as string[],
                   bio: p.bio
               }));
               setFreelancers(mappedFreelancers);
           }
-      } catch (err) {
-          console.error("Error fetching freelancers:", err);
-      }
 
+          // 2. Fetch Projects
+          const { data: dbProjects } = await supabase
+            .from('projects')
+            .select('*')
+            .order('created_at', { ascending: false });
+          
+          if (dbProjects) {
+              const mappedProjects: Project[] = dbProjects.map((p: any) => ({
+                  id: p.id,
+                  title: p.title,
+                  description: p.description,
+                  status: p.status,
+                  budget: { min: p.budget_min, max: p.budget_max },
+                  date: new Date(p.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
+                  created_at: p.created_at,
+                  offers: p.offers_count,
+                  views: p.views_count,
+                  interactions: 0,
+                  skills: p.skills || [],
+                  clientId: p.client_id || 'Client Vérifié',
+                  isFollowed: false
+              }));
+              setProjects(mappedProjects);
+          }
+
+      } catch (err) {
+          console.error("Error fetching data:", err);
+      }
       setLoadingData(false);
     };
 
     fetchData();
-  }, []);
 
-  // Détection de la monnaie
+    // --- SETUP REALTIME SUBSCRIPTION ---
+    // Cela permet au site de se mettre à jour sans recharger la page
+    const channel = supabase.channel('public:db_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'projects' },
+        (payload) => {
+          console.log('Realtime update projects:', payload);
+          fetchData(); // Recharger les données proprement
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles' },
+        (payload) => {
+           console.log('Realtime update profiles:', payload);
+           fetchData();
+           // Si c'est mon profil qui a changé, mettre à jour le contexte Auth
+           if (authUser && payload.new && (payload.new as any).id === authUser.id) {
+              refreshUser(); 
+           }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [authUser, refreshUser]);
+
   const formatMoney = (amount: number) => {
-    if (!localUser?.location) return `${amount} €`;
-    
-    const cfaCountries = ['Benin', 'Bénin', 'Togo', 'Cote d\'Ivoire', 'Côte d\'Ivoire', 'Senegal', 'Sénégal', 'Mali', 'Burkina', 'Niger'];
-    const userCountry = localUser.location;
-    
-    const isCFA = cfaCountries.some(c => userCountry.toLowerCase().includes(c.toLowerCase()));
-    
-    if (isCFA) {
-        const cfaAmount = (amount * 655).toLocaleString('fr-FR');
-        return `${cfaAmount} CFA`;
+    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(amount);
+  };
+
+  const addProject = async (newProject: Omit<Project, 'id' | 'offers' | 'views' | 'interactions' | 'date'>) => {
+    if (!authUser) return;
+
+    // Insertion directe en base de données
+    const { error } = await supabase.from('projects').insert({
+        owner_id: authUser.id,
+        title: newProject.title,
+        description: newProject.description,
+        budget_min: newProject.budget.min,
+        budget_max: newProject.budget.max,
+        skills: newProject.skills,
+        client_id: newProject.clientId,
+        status: 'Ouvert'
+    });
+
+    if (error) {
+        console.error("Erreur création projet:", error);
+        throw error;
     }
+    // Le Realtime mettra à jour la liste automatiquement
+  };
+
+  const updateUserProfile = async (updates: Partial<User>) => {
+    if (!localUser) return;
     
-    return `${amount} €`;
+    // Mapping des champs App -> DB
+    const dbUpdates: any = {};
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.tagline !== undefined) dbUpdates.tagline = updates.tagline;
+    if (updates.location !== undefined) dbUpdates.location = updates.location;
+    if (updates.hourlyRate !== undefined) dbUpdates.hourly_rate = updates.hourlyRate;
+    if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
+    if (updates.skills !== undefined) dbUpdates.skills = updates.skills;
+    if (updates.website !== undefined) dbUpdates.website = updates.website;
+    if (updates.github !== undefined) dbUpdates.github = updates.github;
+    if (updates.linkedin !== undefined) dbUpdates.linkedin = updates.linkedin;
+    if (updates.avatar !== undefined) dbUpdates.avatar_url = updates.avatar;
+
+    dbUpdates.updated_at = new Date().toISOString();
+
+    const { error } = await supabase
+        .from('profiles')
+        .update(dbUpdates)
+        .eq('id', localUser.id);
+
+    if (error) {
+        console.error("Erreur mise à jour profil:", error);
+    } else {
+        // Optimistic update
+        setLocalUser({ ...localUser, ...updates });
+        refreshUser();
+    }
   };
 
-  const addProject = async (newProjectData: Omit<Project, 'id' | 'offers' | 'views' | 'interactions' | 'date'>) => {
-    const tempId = `p-${Date.now()}`;
-    const optimisticProject: Project = {
-      ...newProjectData,
-      id: tempId,
-      offers: 0,
-      views: 0,
-      interactions: 0,
-      date: 'À l\'instant',
-      clientId: localUser?.name || 'Moi'
-    };
-    setProjects([optimisticProject, ...projects]);
-
-    const notif: Notification = {
-      id: `n${Date.now()}`,
-      type: 'success',
-      message: `Votre projet "${newProjectData.title}" est en ligne.`,
-      date: 'À l\'instant',
-      read: false
-    };
-    setNotifications([notif, ...notifications]);
+  const toggleFollowProject = (id: string) => {
+    setProjects(prev => prev.map(p => 
+      p.id === id ? { ...p, isFollowed: !p.isFollowed } : p
+    ));
   };
 
-  const applyToProject = (project: Project, proposal: string) => {
-      const newThreadId = `t_${Date.now()}`;
-      const newMessageThread: MessageThread = {
-          id: newThreadId,
-          correspondent: project.clientId,
-          messages: [
-              {
-                  id: `m_${Date.now()}`,
-                  text: `Nouvelle candidature pour : ${project.title}. \n\nMessage: ${proposal}`,
-                  sender: 'me',
-                  timestamp: "À l'instant"
-              }
-          ],
-          unread: false,
-          avatar: `https://ui-avatars.com/api/?name=${project.clientId}&background=random`,
-          lastMessageDate: "À l'instant"
-      };
+  const applyToProject = async (project: Project, proposalContent: string) => {
+    if (!authUser) return;
 
-      setMessages([newMessageThread, ...messages]);
+    // Insertion en base
+    const { error } = await supabase.from('proposals').insert({
+        project_id: project.id,
+        freelancer_id: authUser.id,
+        content: proposalContent,
+        price: project.budget.max, // Valeur par défaut
+        status: 'pending'
+    });
+
+    if (error) console.error("Erreur candidature:", error);
+
+    // Incrémenter le compteur d'offres localement (optimistic)
+    setProjects(prev => prev.map(p => 
+        p.id === project.id ? { ...p, offers: p.offers + 1 } : p
+    ));
   };
 
   const sendMessage = (threadId: string, text: string) => {
-    setMessages(prev => prev.map(thread => {
-      if (thread.id === threadId) {
-        return {
-          ...thread,
-          messages: [...thread.messages, { id: `msg${Date.now()}`, text, sender: 'me', timestamp: 'À l\'instant' }],
-          lastMessageDate: 'À l\'instant'
-        };
-      }
-      return thread;
-    }));
+    setMessages(prev => prev.map(t => 
+      t.id === threadId ? {
+        ...t,
+        messages: [...t.messages, {
+          id: Date.now().toString(),
+          text,
+          sender: 'me',
+          timestamp: 'À l\'instant'
+        }],
+        lastMessageDate: 'À l\'instant'
+      } : t
+    ));
   };
 
   const markNotificationRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  };
-
-  const toggleFollowProject = (id: string) => {
-    setProjects(prev => prev.map(p => p.id === id ? { ...p, isFollowed: !p.isFollowed } : p));
-  };
-
-  const updateUserProfile = async (updates: Partial<User>) => {
-    if (localUser) {
-        // 1. Mise à jour Optimiste (Interface immédiate)
-        setLocalUser({ ...localUser, ...updates });
-        
-        // Check demo mode
-        if (localUser.id === 'demo-user-id') {
-            console.log("Mode démo : les données ne sont pas persistées en DB.");
-            return;
-        }
-
-        // 2. Mise à jour Supabase (Persistence)
-        try {
-            const dbUpdates: any = {};
-            if (updates.name) dbUpdates.name = updates.name;
-            if (updates.bio) dbUpdates.bio = updates.bio;
-            if (updates.tagline) dbUpdates.tagline = updates.tagline;
-            if (updates.location) dbUpdates.location = updates.location;
-            if (updates.hourlyRate !== undefined) dbUpdates.hourly_rate = updates.hourlyRate;
-            if (updates.website !== undefined) dbUpdates.website = updates.website;
-            if (updates.avatar) dbUpdates.avatar_url = updates.avatar;
-            if (updates.skills) dbUpdates.skills = updates.skills;
-            if (updates.github !== undefined) dbUpdates.github = updates.github;
-            if (updates.linkedin !== undefined) dbUpdates.linkedin = updates.linkedin;
-            
-            dbUpdates.updated_at = new Date().toISOString();
-
-            const { error } = await supabase
-                .from('profiles')
-                .update(dbUpdates)
-                .eq('id', localUser.id);
-
-            if (error) {
-                console.error("Erreur lors de la sauvegarde Supabase:", error);
-                throw error;
-            }
-            
-            // 3. IMPORTANT : Forcer AuthContext à recharger les données fraîches depuis la DB
-            await refreshUser();
-
-        } catch (error) {
-            console.error("Échec de la sauvegarde:", error);
-            // Revert ici si nécessaire
-        }
-    }
   };
 
   return (
