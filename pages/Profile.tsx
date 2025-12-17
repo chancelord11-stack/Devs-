@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { 
   MapPin, Star, PenTool, Save, X, Camera, Globe, Github, Linkedin, 
-  Briefcase, Code2, AlertCircle, DollarSign, Clock 
+  Briefcase, Code2, AlertCircle, DollarSign, Clock, Loader2
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 
@@ -10,6 +10,7 @@ const Profile: React.FC = () => {
   const { user, updateUserProfile } = useData();
   const { addToast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Local state for form
@@ -42,8 +43,9 @@ const Profile: React.FC = () => {
     setIsEditing(true);
   };
 
-  const saveProfile = () => {
-    updateUserProfile({
+  const saveProfile = async () => {
+    setIsSaving(true);
+    await updateUserProfile({
         name: formData.name,
         tagline: formData.tagline,
         location: formData.location,
@@ -54,8 +56,9 @@ const Profile: React.FC = () => {
         github: formData.github,
         linkedin: formData.linkedin
     });
+    setIsSaving(false);
     setIsEditing(false);
-    addToast("Profil mis à jour avec succès !", "success");
+    addToast("Profil synchronisé avec le Nexus !", "success");
   };
 
   const handleAvatarClick = () => {
@@ -84,7 +87,7 @@ const Profile: React.FC = () => {
   );
 
   return (
-    <div className="max-w-6xl mx-auto animate-fade-in pb-20">
+    <div className="max-w-6xl mx-auto pb-20">
        
        <input 
           type="file" 
@@ -102,15 +105,18 @@ const Profile: React.FC = () => {
                    <>
                     <button 
                         onClick={() => setIsEditing(false)}
-                        className="bg-gray-200 dark:bg-white/5 border border-gray-300 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-white/10 font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors text-sm"
+                        disabled={isSaving}
+                        className="bg-gray-200 dark:bg-white/5 border border-gray-300 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-white/10 font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors text-sm disabled:opacity-50"
                     >
                         <X size={16} /> Annuler
                     </button>
                     <button 
                         onClick={saveProfile}
-                        className="bg-nexus-success hover:bg-emerald-600 text-white font-bold py-2 px-6 rounded-lg flex items-center gap-2 transition-colors shadow-lg shadow-emerald-900/20 text-sm"
+                        disabled={isSaving}
+                        className="bg-nexus-success hover:bg-emerald-600 text-white font-bold py-2 px-6 rounded-lg flex items-center gap-2 transition-colors shadow-lg shadow-emerald-900/20 text-sm disabled:opacity-70 disabled:cursor-wait"
                     >
-                        <Save size={16} /> Enregistrer
+                        {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                        {isSaving ? 'Synchronisation...' : 'Enregistrer'}
                     </button>
                    </>
                ) : (
