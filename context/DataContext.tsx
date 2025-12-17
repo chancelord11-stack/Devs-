@@ -15,7 +15,7 @@ interface DataContextType {
   applyToProject: (project: Project, proposal: string) => void;
   markNotificationRead: (id: string) => void;
   toggleFollowProject: (id: string) => void;
-  updateUserProfile: (updates: Partial<User>) => void;
+  updateUserProfile: (updates: Partial<User>) => Promise<void>;
   formatMoney: (amount: number) => string;
   loadingData: boolean;
 }
@@ -23,7 +23,7 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user: authUser } = useAuth();
+  const { user: authUser, refreshUser } = useAuth();
   
   const [localUser, setLocalUser] = useState<User | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -53,8 +53,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const fetchData = async () => {
       setLoadingData(true);
       
-      // 1. Fetch Freelancers from Supabase
       try {
+          // Fetch Freelancers from Supabase
           const { data: profiles, error } = await supabase
             .from('profiles')
             .select('*')
@@ -66,7 +66,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   id: p.id,
                   name: p.name || 'Utilisateur',
                   isAvailable: true,
-                  rating: 5.0, // Valeur par défaut pour les nouveaux
+                  rating: 5.0, 
                   reviewCount: 0,
                   avatar: p.avatar_url || `https://ui-avatars.com/api/?name=${p.name || 'User'}&background=random`,
                   tagline: p.tagline || 'Nouveau talent',
@@ -101,7 +101,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const isCFA = cfaCountries.some(c => userCountry.toLowerCase().includes(c.toLowerCase()));
     
     if (isCFA) {
-        // Taux fixe approximatif 1€ = 655 FCFA
         const cfaAmount = (amount * 655).toLocaleString('fr-FR');
         return `${cfaAmount} CFA`;
     }
@@ -174,12 +173,49 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setProjects(prev => prev.map(p => p.id === id ? { ...p, isFollowed: !p.isFollowed } : p));
   };
 
-  const updateUserProfile = (updates: Partial<User>) => {
+  const updateUserProfile = async (updates: Partial<User>) => {
     if (localUser) {
+        // 1. Mise à jour Optimiste (Interface immédiate)
         setLocalUser({ ...localUser, ...updates });
-        // Update freelancers list if current user is a freelancer
-        if (localUser.type === 'freelance') {
-             setFreelancers(prev => prev.map(f => f.id === localUser.id ? { ...f, ...updates } as Freelancer : f));
+        
+        // Check demo mode
+        if (localUser.id === 'demo-user-id') {
+            console.log("Mode démo : les données ne sont pas persistées en DB.");
+            return;
+        }
+
+        // 2. Mise à jour Supabase (Persistence)
+        try {
+            const dbUpdates: any = {};
+            if (updates.name) dbUpdates.name = updates.name;
+            if (updates.bio) dbUpdates.bio = updates.bio;
+            if (updates.tagline) dbUpdates.tagline = updates.tagline;
+            if (updates.location) dbUpdates.location = updates.location;
+            if (updates.hourlyRate !== undefined) dbUpdates.hourly_rate = updates.hourlyRate;
+            if (updates.website !== undefined) dbUpdates.website = updates.website;
+            if (updates.avatar) dbUpdates.avatar_url = updates.avatar;
+            if (updates.skills) dbUpdates.skills = updates.skills;
+            if (updates.github !== undefined) dbUpdates.github = updates.github;
+            if (updates.linkedin !== undefined) dbUpdates.linkedin = updates.linkedin;
+            
+            dbUpdates.updated_at = new Date().toISOString();
+
+            const { error } = await supabase
+                .from('profiles')
+                .update(dbUpdates)
+                .eq('id', localUser.id);
+
+            if (error) {
+                console.error("Erreur lors de la sauvegarde Supabase:", error);
+                throw error;
+            }
+            
+            // 3. IMPORTANT : Forcer AuthContext à recharger les données fraîches depuis la DB
+            await refreshUser();
+
+        } catch (error) {
+            console.error("Échec de la sauvegarde:", error);
+            // Revert ici si nécessaire
         }
     }
   };
