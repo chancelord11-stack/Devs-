@@ -5,7 +5,7 @@ import { ArrowLeft, Cpu, Sparkles, AlertCircle, ArrowRight } from 'lucide-react'
 
 const PublishProject: React.FC = () => {
   const navigate = useNavigate();
-  const { addProject } = useData();
+  const { addProject, user } = useData();
   const [isAiMode, setIsAiMode] = useState(true);
   const [aiPrompt, setAiPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -56,7 +56,7 @@ React, TypeScript, Tailwind CSS, Supabase.`,
       status: 'Ouvert',
       budget: { min: Number(formData.budgetMin) || 0, max: Number(formData.budgetMax) || 0 },
       skills: [formData.category, 'Brief IA'],
-      clientId: '#NEXUS_AI'
+      clientId: user?.name || 'Moi'
     });
 
     navigate('/projets');
@@ -64,27 +64,27 @@ React, TypeScript, Tailwind CSS, Supabase.`,
 
   return (
     <div className="max-w-4xl mx-auto animate-fade-in">
-      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-500 hover:text-white mb-6 transition-colors">
+      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-500 hover:text-gray-900 dark:hover:text-white mb-6 transition-colors">
         <ArrowLeft size={18} /> Retour au QG
       </button>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Form Area */}
           <div className="lg:col-span-2">
-            <div className="bg-nexus-surface border border-white/10 rounded-2xl p-8 relative overflow-hidden">
+            <div className="bg-white dark:bg-nexus-surface border border-gray-200 dark:border-white/10 rounded-2xl p-8 relative overflow-hidden shadow-sm">
                 {isAiMode ? (
                     <div className="text-center py-10">
-                        <div className="w-16 h-16 bg-nexus-primary/20 text-nexus-primary rounded-full flex items-center justify-center mx-auto mb-6 border border-nexus-primary/50 shadow-[0_0_30px_rgba(124,58,237,0.3)]">
+                        <div className="w-16 h-16 bg-nexus-primary/10 dark:bg-nexus-primary/20 text-nexus-primary rounded-full flex items-center justify-center mx-auto mb-6 border border-nexus-primary/50 shadow-[0_0_30px_rgba(124,58,237,0.3)]">
                             <Cpu size={32} />
                         </div>
-                        <h1 className="text-2xl font-bold text-white font-display mb-2">Générateur de Brief Neural</h1>
-                        <p className="text-gray-400 mb-8 max-w-md mx-auto">Décrivez votre idée en quelques mots. L'IA du Nexus va structurer le projet, estimer le budget et définir la stack technique.</p>
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white font-display mb-2">Générateur de Brief Neural</h1>
+                        <p className="text-gray-600 dark:text-gray-400 mb-8 max-w-md mx-auto">Décrivez votre idée en quelques mots. L'IA du Nexus va structurer le projet, estimer le budget et définir la stack technique.</p>
                         
                         <div className="relative max-w-lg mx-auto">
                             <textarea 
                                 value={aiPrompt}
                                 onChange={e => setAiPrompt(e.target.value)}
-                                className="w-full bg-black/50 border border-nexus-primary/30 rounded-xl p-4 text-white placeholder-gray-600 focus:outline-none focus:border-nexus-primary focus:ring-1 focus:ring-nexus-primary h-32 transition-all"
+                                className="w-full bg-gray-50 dark:bg-black/50 border border-gray-300 dark:border-nexus-primary/30 rounded-xl p-4 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-nexus-primary focus:ring-1 focus:ring-nexus-primary h-32 transition-all"
                                 placeholder="Ex: Je veux une app type Uber pour des tracteurs en Côte d'Ivoire..."
                             />
                             <button 
@@ -96,15 +96,15 @@ React, TypeScript, Tailwind CSS, Supabase.`,
                             </button>
                         </div>
                         
-                        <button onClick={() => setIsAiMode(false)} className="mt-8 text-xs text-gray-500 hover:text-white underline">
+                        <button onClick={() => setIsAiMode(false)} className="mt-8 text-xs text-gray-500 hover:text-nexus-primary underline">
                             Passer en mode manuel classique
                         </button>
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold text-white">Finalisation du Protocole</h2>
-                            <button type="button" onClick={() => setIsAiMode(true)} className="text-xs text-nexus-primary hover:text-white flex items-center gap-1">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Finalisation du Protocole</h2>
+                            <button type="button" onClick={() => setIsAiMode(true)} className="text-xs text-nexus-primary hover:text-nexus-primaryHover flex items-center gap-1">
                                 <Sparkles size={12}/> Utiliser l'IA
                             </button>
                         </div>
@@ -113,7 +113,7 @@ React, TypeScript, Tailwind CSS, Supabase.`,
                             <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">Titre de la mission</label>
                             <input 
                                 type="text" 
-                                className="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-nexus-accent focus:outline-none transition-colors"
+                                className="w-full bg-gray-50 dark:bg-black/30 border border-gray-300 dark:border-white/10 rounded-lg px-4 py-3 text-gray-900 dark:text-white focus:border-nexus-accent focus:outline-none transition-colors"
                                 value={formData.title}
                                 onChange={e => setFormData({...formData, title: e.target.value})}
                                 required
@@ -124,7 +124,7 @@ React, TypeScript, Tailwind CSS, Supabase.`,
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">Catégorie</label>
                                 <select 
-                                    className="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-nexus-accent focus:outline-none appearance-none"
+                                    className="w-full bg-gray-50 dark:bg-black/30 border border-gray-300 dark:border-white/10 rounded-lg px-4 py-3 text-gray-900 dark:text-white focus:border-nexus-accent focus:outline-none appearance-none"
                                     value={formData.category}
                                     onChange={e => setFormData({...formData, category: e.target.value})}
                                 >
@@ -139,7 +139,7 @@ React, TypeScript, Tailwind CSS, Supabase.`,
                                     <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">Min (€)</label>
                                     <input 
                                         type="number" 
-                                        className="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-nexus-accent focus:outline-none"
+                                        className="w-full bg-gray-50 dark:bg-black/30 border border-gray-300 dark:border-white/10 rounded-lg px-4 py-3 text-gray-900 dark:text-white focus:border-nexus-accent focus:outline-none"
                                         value={formData.budgetMin}
                                         onChange={e => setFormData({...formData, budgetMin: e.target.value})}
                                     />
@@ -148,7 +148,7 @@ React, TypeScript, Tailwind CSS, Supabase.`,
                                     <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">Max (€)</label>
                                     <input 
                                         type="number" 
-                                        className="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-nexus-accent focus:outline-none"
+                                        className="w-full bg-gray-50 dark:bg-black/30 border border-gray-300 dark:border-white/10 rounded-lg px-4 py-3 text-gray-900 dark:text-white focus:border-nexus-accent focus:outline-none"
                                         value={formData.budgetMax}
                                         onChange={e => setFormData({...formData, budgetMax: e.target.value})}
                                     />
@@ -159,7 +159,7 @@ React, TypeScript, Tailwind CSS, Supabase.`,
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">Spécifications Techniques</label>
                             <textarea 
-                                className="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-nexus-accent focus:outline-none min-h-[200px] font-mono text-sm"
+                                className="w-full bg-gray-50 dark:bg-black/30 border border-gray-300 dark:border-white/10 rounded-lg px-4 py-3 text-gray-900 dark:text-white focus:border-nexus-accent focus:outline-none min-h-[200px] font-mono text-sm"
                                 value={formData.description}
                                 onChange={e => setFormData({...formData, description: e.target.value})}
                                 required
@@ -176,21 +176,21 @@ React, TypeScript, Tailwind CSS, Supabase.`,
 
           {/* Sidebar / Info */}
           <div className="space-y-6">
-              <div className="bg-nexus-surface/50 border border-nexus-accent/20 p-6 rounded-2xl relative">
-                  <div className="absolute top-0 right-0 p-2 opacity-20">
+              <div className="bg-indigo-50 dark:bg-nexus-surface/50 border border-indigo-100 dark:border-nexus-accent/20 p-6 rounded-2xl relative">
+                  <div className="absolute top-0 right-0 p-2 opacity-10 dark:opacity-20">
                       <Cpu size={64} />
                   </div>
                   <h3 className="text-nexus-accent font-bold mb-2">Matching Prédictif</h3>
-                  <p className="text-sm text-gray-400">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
                       Dès publication, le Nexus analysera 42,000 profils pour vous proposer le Top 3 des talents en moins de 0.5s.
                   </p>
               </div>
               
-              <div className="bg-black/40 border border-white/5 p-6 rounded-2xl">
+              <div className="bg-gray-100 dark:bg-black/40 border border-gray-200 dark:border-white/5 p-6 rounded-2xl">
                   <div className="flex items-start gap-3">
                       <AlertCircle className="text-nexus-warning shrink-0" size={20} />
                       <div>
-                          <h4 className="text-white font-bold text-sm">Escrow Sécurisé</h4>
+                          <h4 className="text-gray-900 dark:text-white font-bold text-sm">Escrow Sécurisé</h4>
                           <p className="text-xs text-gray-500 mt-1">Les fonds sont bloqués sur un smart-contract jusqu'à validation des livrables.</p>
                       </div>
                   </div>
