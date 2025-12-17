@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { 
   MapPin, Star, PenTool, Save, X, Camera, Globe, Github, Linkedin, 
-  Mail, Trash2, Link as LinkIcon, AlertCircle, Briefcase, Code2, 
-  CheckCircle2, Clock, DollarSign 
+  Briefcase, Code2, AlertCircle, DollarSign, Clock 
 } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
 
 const Profile: React.FC = () => {
   const { user, updateUserProfile } = useData();
+  const { addToast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Local state for form
   const [formData, setFormData] = useState({
@@ -53,6 +55,26 @@ const Profile: React.FC = () => {
         linkedin: formData.linkedin
     });
     setIsEditing(false);
+    addToast("Profil mis à jour avec succès !", "success");
+  };
+
+  const handleAvatarClick = () => {
+    if (isEditing && fileInputRef.current) {
+        fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const base64String = reader.result as string;
+            updateUserProfile({ avatar: base64String });
+            addToast("Photo de profil mise à jour.", "success");
+        };
+        reader.readAsDataURL(file);
+    }
   };
 
   const DefaultAvatar = () => (
@@ -64,15 +86,23 @@ const Profile: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto animate-fade-in pb-20">
        
+       <input 
+          type="file" 
+          ref={fileInputRef} 
+          className="hidden" 
+          accept="image/*"
+          onChange={handleFileChange}
+       />
+
        {/* Actions Bar */}
        <div className="flex justify-between items-center mb-6">
-           <h1 className="text-2xl font-bold text-white font-display hidden sm:block">Mon Profil Public</h1>
+           <h1 className="text-2xl font-bold text-gray-900 dark:text-white font-display hidden sm:block">Mon Profil Public</h1>
            <div className="flex gap-3 ml-auto">
                {isEditing ? (
                    <>
                     <button 
                         onClick={() => setIsEditing(false)}
-                        className="bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors text-sm"
+                        className="bg-gray-200 dark:bg-white/5 border border-gray-300 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-white/10 font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors text-sm"
                     >
                         <X size={16} /> Annuler
                     </button>
@@ -100,18 +130,17 @@ const Profile: React.FC = () => {
           <div className="lg:col-span-8 space-y-6">
               
               {/* Identity Card */}
-              <div className="bg-nexus-surface border border-white/10 rounded-2xl overflow-hidden relative">
+              <div className="bg-white dark:bg-nexus-surface border border-gray-200 dark:border-white/10 rounded-2xl overflow-hidden relative shadow-sm">
                   {/* Banner */}
                   <div className="h-40 bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-900 relative">
                       <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
-                      <div className="absolute inset-0 bg-gradient-to-t from-nexus-surface to-transparent"></div>
                   </div>
 
                   <div className="px-8 pb-8">
                       <div className="relative flex flex-col sm:flex-row gap-6 items-end -mt-16">
                           {/* Avatar */}
-                          <div className="relative group shrink-0">
-                              <div className="w-32 h-32 rounded-2xl border-4 border-nexus-surface shadow-2xl overflow-hidden bg-gray-800">
+                          <div className="relative group shrink-0" onClick={handleAvatarClick}>
+                              <div className="w-32 h-32 rounded-2xl border-4 border-white dark:border-nexus-surface shadow-2xl overflow-hidden bg-gray-800">
                                   {user.avatar ? (
                                       <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
                                   ) : (
@@ -119,8 +148,9 @@ const Profile: React.FC = () => {
                                   )}
                               </div>
                               {isEditing && (
-                                  <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-xl backdrop-blur-sm cursor-pointer border-4 border-transparent">
+                                  <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-xl backdrop-blur-sm cursor-pointer border-4 border-transparent hover:bg-black/70 transition-colors">
                                       <Camera size={24} className="text-white" />
+                                      <span className="absolute bottom-2 text-[10px] text-white font-bold">MODIFIER</span>
                                   </div>
                               )}
                           </div>
@@ -133,26 +163,36 @@ const Profile: React.FC = () => {
                                         type="text" 
                                         value={formData.name}
                                         onChange={e => setFormData({...formData, name: e.target.value})}
-                                        className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-xl font-bold text-white focus:border-nexus-primary outline-none"
+                                        className="w-full bg-gray-50 dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-lg px-3 py-2 text-xl font-bold text-gray-900 dark:text-white focus:border-nexus-primary outline-none"
                                         placeholder="Votre nom"
                                       />
                                       <input 
                                         type="text" 
                                         value={formData.tagline}
                                         onChange={e => setFormData({...formData, tagline: e.target.value})}
-                                        className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-nexus-accent font-medium focus:border-nexus-primary outline-none"
+                                        className="w-full bg-gray-50 dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-lg px-3 py-2 text-nexus-primary font-medium focus:border-nexus-primary outline-none"
                                         placeholder="Votre titre (ex: Développeur Fullstack)"
                                       />
+                                      <div className="flex items-center gap-2">
+                                          <MapPin size={16} className="text-gray-500" />
+                                          <input 
+                                            type="text" 
+                                            value={formData.location}
+                                            onChange={e => setFormData({...formData, location: e.target.value})}
+                                            className="w-full bg-gray-50 dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-gray-700 dark:text-gray-300 focus:border-nexus-primary outline-none"
+                                            placeholder="Votre ville, Pays (ex: Cotonou, Bénin)"
+                                          />
+                                      </div>
                                   </div>
                               ) : (
                                   <div>
-                                      <h1 className="text-3xl font-bold text-white mb-1">{user.name}</h1>
+                                      <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">{user.name}</h1>
                                       <p className="text-lg text-nexus-primary font-medium">{user.tagline || 'Membre AfriTech'}</p>
                                       
-                                      <div className="flex items-center gap-4 mt-3 text-sm text-gray-400">
+                                      <div className="flex items-center gap-4 mt-3 text-sm text-gray-500 dark:text-gray-400">
                                           <div className="flex items-center gap-1">
                                               <MapPin size={14} /> 
-                                              {user.location || 'Non renseigné'}
+                                              {user.location || 'Localisation non définie'}
                                           </div>
                                           <div className="flex items-center gap-1 text-nexus-success">
                                               <span className="w-1.5 h-1.5 rounded-full bg-nexus-success"></span> Disponible
@@ -169,25 +209,25 @@ const Profile: React.FC = () => {
               </div>
 
               {/* Bio & Skills */}
-              <div className="bg-nexus-surface border border-white/10 rounded-2xl p-8 space-y-8">
+              <div className="bg-white dark:bg-nexus-surface border border-gray-200 dark:border-white/10 rounded-2xl p-8 space-y-8 shadow-sm">
                   <section>
-                      <h2 className="flex items-center gap-2 text-lg font-bold text-white mb-4">
+                      <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white mb-4">
                           <Briefcase className="text-nexus-accent" size={20} /> À propos
                       </h2>
                       {isEditing ? (
                           <>
                             <textarea 
-                                className="w-full bg-black/20 border border-white/10 rounded-xl p-4 text-gray-300 focus:border-nexus-primary outline-none min-h-[150px] leading-relaxed"
+                                className="w-full bg-gray-50 dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-xl p-4 text-gray-900 dark:text-gray-300 focus:border-nexus-primary outline-none min-h-[150px] leading-relaxed"
                                 value={formData.bio}
                                 onChange={e => setFormData({...formData, bio: e.target.value})}
                                 placeholder="Décrivez votre parcours, vos expertises et ce que vous apportez à vos clients..."
                             />
-                            <p className="text-right text-xs text-gray-600 mt-1">Markdown supporté</p>
+                            <p className="text-right text-xs text-gray-500 mt-1">Markdown supporté</p>
                           </>
                       ) : (
-                          <div className="text-gray-300 leading-relaxed whitespace-pre-line text-sm">
+                          <div className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line text-sm">
                             {user.bio || (
-                                <div className="flex items-center gap-3 text-gray-500 italic bg-white/5 p-4 rounded-xl border border-white/5">
+                                <div className="flex items-center gap-3 text-gray-500 italic bg-gray-100 dark:bg-white/5 p-4 rounded-xl border border-gray-200 dark:border-white/5">
                                     <AlertCircle size={20} />
                                     Votre bio est vide. Ajoutez une description pour rassurer les clients potentiels.
                                 </div>
@@ -197,13 +237,13 @@ const Profile: React.FC = () => {
                    </section>
 
                    <section>
-                      <h2 className="flex items-center gap-2 text-lg font-bold text-white mb-4">
+                      <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white mb-4">
                           <Code2 className="text-nexus-primary" size={20} /> Compétences
                       </h2>
                       {isEditing ? (
                           <div>
                               <input 
-                                className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white focus:border-nexus-primary outline-none"
+                                className="w-full bg-gray-50 dark:bg-black/20 border border-gray-300 dark:border-white/10 rounded-xl p-3 text-gray-900 dark:text-white focus:border-nexus-primary outline-none"
                                 value={formData.skills}
                                 onChange={e => setFormData({...formData, skills: e.target.value})}
                                 placeholder="React, Node.js, Docker... (séparés par des virgules)"
@@ -212,7 +252,7 @@ const Profile: React.FC = () => {
                       ) : (
                           <div className="flex flex-wrap gap-2">
                              {user.skills.length > 0 ? user.skills.map(skill => (
-                                <span key={skill} className="bg-white/5 border border-white/5 text-gray-300 px-3 py-1.5 rounded-lg text-sm font-medium hover:border-nexus-primary/50 hover:text-white transition-colors cursor-default">
+                                <span key={skill} className="bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg text-sm font-medium hover:border-nexus-primary/50 hover:text-nexus-primary dark:hover:text-white transition-colors cursor-default">
                                    {skill}
                                 </span>
                              )) : (
@@ -228,9 +268,9 @@ const Profile: React.FC = () => {
           <div className="lg:col-span-4 space-y-6">
               
               {/* TJM Card */}
-              <div className="bg-nexus-surface border border-white/10 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-4 opacity-5">
-                      <DollarSign size={80} className="text-white" />
+              <div className="bg-white dark:bg-nexus-surface border border-gray-200 dark:border-white/10 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10 dark:opacity-5">
+                      <DollarSign size={80} className="text-black dark:text-white" />
                   </div>
                   <div className="mb-4">
                       <span className="text-gray-500 text-sm font-medium uppercase tracking-wider">Tarif Journalier</span>
@@ -238,29 +278,29 @@ const Profile: React.FC = () => {
                           {isEditing ? (
                               <input 
                                 type="number"
-                                className="text-3xl font-bold text-white w-32 bg-transparent border-b border-white/20 focus:border-nexus-primary outline-none"
+                                className="text-3xl font-bold text-gray-900 dark:text-white w-32 bg-transparent border-b border-gray-300 dark:border-white/20 focus:border-nexus-primary outline-none"
                                 value={formData.hourlyRate}
                                 onChange={e => setFormData({...formData, hourlyRate: Number(e.target.value)})}
                               />
                           ) : (
-                              <span className="text-4xl font-mono font-bold text-white">{user.hourlyRate || 0} €</span>
+                              <span className="text-4xl font-mono font-bold text-gray-900 dark:text-white">{user.hourlyRate || 0} €</span>
                           )}
                           <span className="text-gray-500 font-medium">/ jour</span>
                       </div>
                   </div>
                   
-                  <div className="space-y-3 pt-4 border-t border-white/10">
+                  <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-white/10">
                       <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-400">Niveau</span>
+                          <span className="text-gray-500">Niveau</span>
                           <span className="text-nexus-accent font-bold">{user.rank || 'Nouveau'}</span>
                       </div>
                       <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-400">Projets réalisés</span>
-                          <span className="text-white font-bold">{user.projectsCount || 0}</span>
+                          <span className="text-gray-500">Projets réalisés</span>
+                          <span className="text-gray-900 dark:text-white font-bold">{user.projectsCount || 0}</span>
                       </div>
                       <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-400">Note moyenne</span>
-                          <div className="flex items-center gap-1 text-amber-400 font-bold">
+                          <span className="text-gray-500">Note moyenne</span>
+                          <div className="flex items-center gap-1 text-amber-500 font-bold">
                               <Star size={14} fill="currentColor" /> {user.rating || '-'}
                           </div>
                       </div>
@@ -268,35 +308,35 @@ const Profile: React.FC = () => {
               </div>
 
               {/* Socials / Contact */}
-              <div className="bg-nexus-surface border border-white/10 rounded-2xl p-6">
-                  <h3 className="font-bold text-white mb-4 text-sm uppercase tracking-wider">Présence en ligne</h3>
+              <div className="bg-white dark:bg-nexus-surface border border-gray-200 dark:border-white/10 rounded-2xl p-6 shadow-sm">
+                  <h3 className="font-bold text-gray-900 dark:text-white mb-4 text-sm uppercase tracking-wider">Présence en ligne</h3>
                   
                   {isEditing ? (
                       <div className="space-y-3">
-                          <div className="flex items-center gap-3 bg-black/20 p-2 rounded-lg border border-white/5">
+                          <div className="flex items-center gap-3 bg-gray-50 dark:bg-black/20 p-2 rounded-lg border border-gray-200 dark:border-white/5">
                               <Globe size={18} className="text-gray-400" />
                               <input 
                                   value={formData.website}
                                   onChange={e => setFormData({...formData, website: e.target.value})}
-                                  className="bg-transparent text-sm text-white w-full outline-none placeholder-gray-600"
+                                  className="bg-transparent text-sm text-gray-900 dark:text-white w-full outline-none placeholder-gray-500"
                                   placeholder="Site web"
                               />
                           </div>
-                          <div className="flex items-center gap-3 bg-black/20 p-2 rounded-lg border border-white/5">
+                          <div className="flex items-center gap-3 bg-gray-50 dark:bg-black/20 p-2 rounded-lg border border-gray-200 dark:border-white/5">
                               <Github size={18} className="text-gray-400" />
                               <input 
                                   value={formData.github}
                                   onChange={e => setFormData({...formData, github: e.target.value})}
-                                  className="bg-transparent text-sm text-white w-full outline-none placeholder-gray-600"
+                                  className="bg-transparent text-sm text-gray-900 dark:text-white w-full outline-none placeholder-gray-500"
                                   placeholder="Github URL"
                               />
                           </div>
-                          <div className="flex items-center gap-3 bg-black/20 p-2 rounded-lg border border-white/5">
+                          <div className="flex items-center gap-3 bg-gray-50 dark:bg-black/20 p-2 rounded-lg border border-gray-200 dark:border-white/5">
                               <Linkedin size={18} className="text-gray-400" />
                               <input 
                                   value={formData.linkedin}
                                   onChange={e => setFormData({...formData, linkedin: e.target.value})}
-                                  className="bg-transparent text-sm text-white w-full outline-none placeholder-gray-600"
+                                  className="bg-transparent text-sm text-gray-900 dark:text-white w-full outline-none placeholder-gray-500"
                                   placeholder="LinkedIn URL"
                               />
                           </div>
@@ -304,17 +344,17 @@ const Profile: React.FC = () => {
                   ) : (
                       <div className="space-y-2">
                           {user.website && (
-                              <a href={user.website} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors">
+                              <a href={user.website} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 text-gray-600 dark:text-gray-400 hover:text-nexus-primary dark:hover:text-white transition-colors">
                                   <Globe size={18} /> <span className="text-sm truncate">{user.website}</span>
                               </a>
                           )}
                           {user.github && (
-                              <a href={user.github} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors">
+                              <a href={user.github} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 text-gray-600 dark:text-gray-400 hover:text-nexus-primary dark:hover:text-white transition-colors">
                                   <Github size={18} /> <span className="text-sm">Github Profile</span>
                               </a>
                           )}
                           {user.linkedin && (
-                              <a href={user.linkedin} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors">
+                              <a href={user.linkedin} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 text-gray-600 dark:text-gray-400 hover:text-nexus-primary dark:hover:text-white transition-colors">
                                   <Linkedin size={18} /> <span className="text-sm">LinkedIn Profile</span>
                               </a>
                           )}
@@ -322,25 +362,6 @@ const Profile: React.FC = () => {
                               <p className="text-sm text-gray-500 italic p-2">Aucun réseau renseigné.</p>
                           )}
                       </div>
-                  )}
-              </div>
-
-              {/* Completion Widget */}
-              <div className="bg-gradient-to-br from-indigo-900/50 to-purple-900/50 border border-indigo-500/30 rounded-2xl p-6">
-                  <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-bold text-white">Complétion du profil</h3>
-                      <span className="font-mono font-bold text-nexus-primary">{user.profileCompletion}%</span>
-                  </div>
-                  <div className="w-full bg-black/40 h-2 rounded-full mb-4 overflow-hidden">
-                      <div className="bg-nexus-primary h-full rounded-full transition-all duration-1000" style={{ width: `${user.profileCompletion}%` }}></div>
-                  </div>
-                  <p className="text-xs text-indigo-200">
-                      Un profil complet à 100% augmente vos chances d'être contacté de 3x.
-                  </p>
-                  {user.profileCompletion < 100 && (
-                      <button onClick={startEditing} className="mt-4 w-full py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold text-white transition-colors">
-                          Compléter maintenant
-                      </button>
                   )}
               </div>
           </div>
