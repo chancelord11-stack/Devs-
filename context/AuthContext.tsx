@@ -8,6 +8,7 @@ interface AuthContextType {
   loading: boolean;
   signOut: () => Promise<void>;
   loginWithDemo: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,8 +37,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     bio: "Développeur Fullstack passionné avec une expertise sur les architectures modernes."
   };
 
+  // Fonction pour récupérer le vrai profil en base de données
+  const fetchRealProfile = async (sessionUser: any) => {
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', sessionUser.id)
+        .single();
+
+      if (profile) {
+        // Fusionner les données de session et les données de la DB
+        const appUser: User = {
+            id: sessionUser.id,
+            email: sessionUser.email,
+            name: profile.name || sessionUser.user_metadata?.name || sessionUser.email.split('@')[0],
+            avatar: profile.avatar_url || sessionUser.user_metadata?.avatar || `https://ui-avatars.com/api/?background=random&name=${sessionUser.email}`,
+            type: profile.type || 'freelance',
+            skills: profile.skills || [],
+            profileCompletion: 60, // Calculer dynamiquement si besoin
+            recommendations: 0,
+            verifications: ['email'],
+            achievements: 0,
+            rank: 'Membre',
+            rating: profile.rating || 0,
+            projectsCount: 0,
+            bio: profile.bio || '',
+            tagline: profile.tagline || '',
+            hourlyRate: profile.hourly_rate || 0,
+            location: profile.location || '',
+            website: profile.website,
+            github: profile.github,
+            linkedin: profile.linkedin
+        };
+        setUser(appUser);
+      } else {
+        // Si pas de profil en base (cas rare ou première connexion sans trigger), fallback sur metadata
+        mapSupabaseUserToAppUser(sessionUser);
+      }
+    } catch (err) {
+      console.error("Erreur chargement profil:", err);
+      mapSupabaseUserToAppUser(sessionUser);
+    }
+  };
+
   useEffect(() => {
-    // Check for existing Supabase session OR Demo session
     const initSession = async () => {
       // 1. Check Demo LocalStorage
       const demoSession = localStorage.getItem('lanceo_demo_session');
@@ -51,43 +95,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // 2. Check Real Supabase Session
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
+      
       if (session?.user) {
-        mapSupabaseUserToAppUser(session.user);
-      } else {
-        setLoading(false);
+        // IMPORTANT : Charger depuis la DB
+        await fetchRealProfile(session.user);
       }
+      
+      setLoading(false);
     };
 
     initSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      // Ignore Supabase updates if we are in demo mode
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (localStorage.getItem('lanceo_demo_session') === 'active') return;
 
       setSession(session);
       if (session?.user) {
-        mapSupabaseUserToAppUser(session.user);
+        await fetchRealProfile(session.user);
       } else {
         setUser(null);
-        setLoading(false);
       }
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
   const mapSupabaseUserToAppUser = (authUser: any) => {
-     // Extract type from metadata, default to 'freelance' if missing
      const accountType = authUser.user_metadata?.type === 'client' ? 'client' : 'freelance';
-     
      const appUser: User = {
         id: authUser.id,
         email: authUser.email,
         name: authUser.user_metadata?.name || authUser.email.split('@')[0],
-        avatar: authUser.user_metadata?.avatar || `https://ui-avatars.com/api/?background=6366f1&color=fff&name=${authUser.user_metadata?.name || 'User'}`,
+        avatar: authUser.user_metadata?.avatar,
         type: accountType,
-        skills: ['Nouveau'],
-        profileCompletion: 15,
+        skills: [],
+        profileCompletion: 20,
         recommendations: 0,
         verifications: ['email'],
         achievements: 0,
@@ -96,7 +139,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         projectsCount: 0
      };
      setUser(appUser);
-     setLoading(false);
   };
 
   const loginWithDemo = () => {
@@ -115,8 +157,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSession(null);
   };
 
+  const refreshUser = async () => {
+    if (session?.user) {
+        await fetchRealProfile(session.user);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, loading, signOut, loginWithDemo }}>
+    <AuthContext.Provider value={{ user, session, loading, signOut, loginWithDemo, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
